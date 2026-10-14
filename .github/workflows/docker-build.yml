@@ -1,0 +1,107 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ai-devops-assessment
+
+jobs:
+  build_prod:
+    name: Build and push production image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: production
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:prod
+
+  build_dev:
+    name: Build and push development image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push development image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: development
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:dev
+
+  test:
+    name: Test both containers
+    runs-on: ubuntu-latest
+    needs: [build_prod, build_dev]
+
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Run production container
+        run: docker run -d --name prod-app -p 5000:5000 "$DOCKER_USERNAME/ai-devops-assessment:prod"
+
+      - name: Run development container
+        run: docker run -d --name dev-app -p 5001:5000 "$DOCKER_USERNAME/ai-devops-assessment:dev"
+
+      - name: Verify production app
+        run: |
+          curl --retry 15 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:5000/ | grep -q "Hello, World!"
+          echo "Production container works."
+
+      - name: Verify development app
+        run: |
+          curl --retry 15 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:5001/ | grep -q "Hello, World!"
+          echo "Development container works."
+
+      - name: Show running containers
+        run: docker ps
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          docker logs prod-app || true
+          docker logs dev-app || true
+
+      - name: Clean up containers
+        if: always()
+        run: docker rm -f prod-app dev-app || true
