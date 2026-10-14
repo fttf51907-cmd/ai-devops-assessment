@@ -81,7 +81,7 @@ jobs:
         run: docker run -d --name prod-app -p 5000:5000 "$DOCKER_USERNAME/ai-devops-assessment:prod"
 
       - name: Run development container
-        run: docker run -d --name dev-app -p 5001:5000 "$DOCKER_USERNAME/ai-devops-assessment:dev"
+        run: docker run -d --name dev-app -p 8001:5000 "$DOCKER_USERNAME/ai-devops-assessment:dev"
 
       - name: Verify production app
         run: |
@@ -90,7 +90,7 @@ jobs:
 
       - name: Verify development app
         run: |
-          curl --retry 15 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:5001/ | grep -q "Hello, World!"
+          curl --retry 15 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:8001/ | grep -q "Hello, World!"
           echo "Development container works."
 
       - name: Show running containers
